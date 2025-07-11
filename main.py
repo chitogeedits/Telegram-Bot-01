@@ -22,7 +22,7 @@ ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
 REQUIRED_CHANNELS = os.getenv("REQUIRED_CHANNELS", "").split(",")
 COVER_IMAGE_URL = os.getenv("COVER_IMAGE_URL")
 WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL")
-QUALITIES = os.getenv("SUPPORTED_QUALITIES", "").split(",")
+SUPPORTED_QUALITIES = os.getenv("SUPPORTED_QUALITIES", "").split(",")
 DB_PATH = "file_tokens.db"
 media_group_cache = {}
 
