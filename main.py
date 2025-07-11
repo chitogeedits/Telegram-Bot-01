@@ -49,7 +49,7 @@ def get_token(token):
 # === HELPERS ===
 def extract_quality(name):
     name = name.lower()
-    for q in ["480p", "720p", "1080p", "4k"]:
+    for q in SUPPORTED_QUALITIES:
         if q in name:
             return q.upper()
     return "UNKNOWN"
