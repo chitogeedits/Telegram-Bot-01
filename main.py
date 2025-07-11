@@ -22,7 +22,6 @@ ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
 REQUIRED_CHANNELS = os.getenv("REQUIRED_CHANNELS", "").split(",")
 COVER_IMAGE_URL = os.getenv("COVER_IMAGE_URL")
 WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL")
-SUPPORTED_QUALITIES = os.getenv("SUPPORTED_QUALITIES", "").split(",")
 DB_PATH = "file_tokens.db"
 media_group_cache = {}
 
@@ -49,7 +48,7 @@ def get_token(token):
 # === HELPERS ===
 def extract_quality(name):
     name = name.lower()
-    for q in [SUPPORTED_QUALITIES]:
+    for q in ["480p", "720p", "1080p", "4k"]:
         if q in name:
             return q.upper()
     return "UNKNOWN"
