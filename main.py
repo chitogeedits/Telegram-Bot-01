@@ -63,6 +63,25 @@ def extract_audio(name):
         return "Japanese [Sub]"
     return "N/A"
 
+def extract_season_episode(name):
+    """
+    Extract season and episode numbers from file name.
+    Matches formats like:
+    - S1, S01, Season 1
+    - EP1, Ep 01, Episode 01
+    """
+    name = name.lower()
+
+    # Extract season
+    season_match = re.search(r'\b(?:s|season)[\s:_-]*(\d{1,2})\b', name)
+    season = season_match.group(1).zfill(2) if season_match else "01"
+
+    # Extract episode
+    episode_match = re.search(r'\b(?:ep|episode)[\s:_-]*(\d{1,3})\b', name)
+    episode = episode_match.group(1).zfill(2) if episode_match else "01"
+
+    return season, episode
+
 def get_unsubscribed_channels(bot, user_id):
     not_joined = []
     for ch in REQUIRED_CHANNELS:
@@ -111,6 +130,7 @@ def postfile(update: Update, context: CallbackContext):
     quality_map = {}
     audio_text = "N/A"
     first_token = None
+    season, episode = "01", "01"
 
     for m in media_files:
         if not m.document:
@@ -118,6 +138,7 @@ def postfile(update: Update, context: CallbackContext):
         file_name = m.document.file_name or "file"
         quality = extract_quality(file_name)
         audio_text = extract_audio(file_name)
+        season, episode = extract_season_episode(file_name)
         token = f"file_{quality}_{m.message_id}"
         file_id = m.document.file_id
         save_token(token, file_id, file_name)
@@ -149,8 +170,8 @@ def postfile(update: Update, context: CallbackContext):
     caption = (
         f"⬡ {title}\n"
         f"╭━━━━━━━━━━━━━━━━━━━━━\n"
-        f"‣ Season : 01\n"
-        f"‣ Episode : 01\n"
+        f"‣ Season : {season}\n"
+        f"‣ Episode : {episode}\n"
         f"‣ Quality : {quality_text}\n"
         f"‣ Audio   : {audio_text}\n"
         f"╰━━━━━━━━━━━━━━━━━━━━━\n"
@@ -195,7 +216,7 @@ def start(update: Update, context: CallbackContext):
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
     if not_joined:
-        buttons = [[InlineKeyboardButton(f"Join The Channel")]] #, url=f"https://t.me/{ch}")] for ch in not_joined]
+        buttons = [[InlineKeyboardButton(f"Join The Channel")]]
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
         context.bot.send_message(
             chat_id=user.id,
@@ -236,7 +257,7 @@ def retry_callback(update: Update, context: CallbackContext):
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
     if not_joined:
-        buttons = [[InlineKeyboardButton(f"Join The Channel")]] #, url=f"https://t.me/{ch}")] for ch in not_joined]
+        buttons = [[InlineKeyboardButton(f"Join The Channel")]]
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
         query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
         query.answer("❗ Still not joined required channels.")
