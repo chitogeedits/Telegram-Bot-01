@@ -24,7 +24,7 @@ ALLOWED_USERNAME = "chitogeedits3"
 REQUIRED_CHANNELS = ["kagenou_x_x_0", "chitogeedits2", "blabla658"]
 COVER_IMAGE_URL = "https://i.ibb.co/B5mFTtdD/thumbnail-00000.png"
 WELCOME_IMAGE_URL = "https://i.ibb.co/N652WQmH/90s-Anime-Songs.png"
-
+DB_PATH="file_tokens.db"
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # === DB ===
