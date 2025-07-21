@@ -15,18 +15,15 @@ from telegram.ext import (
 )
 
 # === CONFIG ===
-FILE_BOT_TOKEN = os.getenv("FILE_BOT_TOKEN")
-REPOST_BOT_TOKEN = os.getenv("REPOST_BOT_TOKEN")
-SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID"))
-TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID"))
-CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
-ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
-REQUIRED_CHANNELS = os.getenv("REQUIRED_CHANNELS", "").split(",")
-COVER_IMAGE_URL = os.getenv("COVER_IMAGE_URL")
-WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL")
-DB_PATH = "file_tokens.db"
-media_group_cache = {}
-start_time = time.time()
+FILE_BOT_TOKEN = "7947800409:AAEocWaVO5wUHFwAZE-dKz2gmHIT1gfdCQA"
+REPOST_BOT_TOKEN = "7833851603:AAGzxuvyihRp4BQOiKVu_WvBFmh1K5dNMU4"
+SOURCE_CHANNEL_ID = -1002683953531
+TARGET_CHANNEL_ID = -1002788539716
+CHANNEL_ID = -1002683953531
+ALLOWED_USERNAME = "chitogeedits3"
+REQUIRED_CHANNELS = ["kagenou_x_x_0", "chitogeedits2", "blabla658"]
+COVER_IMAGE_URL = "https://i.ibb.co/B5mFTtdD/thumbnail-00000.png"
+WELCOME_IMAGE_URL = "https://i.ibb.co/N652WQmH/90s-Anime-Songs.png"
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
