@@ -6,6 +6,8 @@ import sqlite3
 import logging
 import platform
 import psutil
+from dotenv import load_dotenv
+load_dotenv()
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 )
