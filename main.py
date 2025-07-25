@@ -6,6 +6,7 @@ import sqlite3
 import logging
 import platform
 import psutil
+from telegram.error import BadRequest
 from dotenv import load_dotenv
 
 from telegram import (
@@ -252,7 +253,7 @@ def start(update: Update, context: CallbackContext):
             context.bot.send_photo(
                 chat_id=user.id,
                 photo=WELCOME_IMAGE_URL,
-                caption="Welcome!\n\nThis bot doesn't support browsing directly.\n\n⬡ Powered by @chitogeedits2",
+                caption="Welcome!\n\nThis bot doesn't support browsing directly.\n\nPowered by @chitogeedits2",
                 reply_markup=buttons
             )
         except Exception as e:
@@ -262,21 +263,35 @@ def start(update: Update, context: CallbackContext):
     token = args[0]
     file_id, file_name = get_token(token)
     if not file_id:
-        update.message.reply_text("❌ File not available.")
+        update.message.reply_text("File not available.")
         return
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
     if not_joined:
-        buttons = [
-            [InlineKeyboardButton("Join Channel", url=f"https://t.me/{ch}")]
-            for ch in not_joined
-        ]
+        # Create buttons with 2 per row
+        buttons = []
+        row = []
+        for ch in not_joined:
+            row.append(InlineKeyboardButton("Join Channel", url=f"https://t.me/{ch}"))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
+        # Add final Try Again button
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
-        context.bot.send_message(
-            chat_id=user.id,
-            text="🔒 Please join all required channels to unlock this file:",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
+
+        try:
+            context.bot.send_photo(
+    chat_id=user.id,
+    photo="https://i.ibb.co/KcRWdnbf/Daco-212971.jpg",
+    caption="H-Hey! Join the required channels before touching the file, okay!? Hmph!",
+    reply_markup=InlineKeyboardMarkup(buttons),
+    parse_mode=ParseMode.HTML
+)
+
+        except Exception as e:
+            logging.error(f"Force join GIF send failed: {e}")
         return
 
     try:
@@ -288,12 +303,12 @@ def start(update: Update, context: CallbackContext):
         )
         context.bot.send_message(
             chat_id=user.id,
-            text="<blockquote>This File is deleting automatically in 10 minutes. Forward in your Saved Messages..!.</blockquote>",
+            text="<blockquote>This file will delete automatically in 10 minutes. Forward it to your Saved Messages.</blockquote>",
             parse_mode=ParseMode.HTML
         )
         context.job_queue.run_once(delete_sent_file, 600, context={"chat_id": user.id, "message_id": sent.message_id})
     except Exception as e:
-        update.message.reply_text("❌ Failed to send file.")
+        update.message.reply_text("Failed to send file.")
         logging.error(f"Start error: {e}")
 
 
@@ -315,12 +330,24 @@ def retry_callback(update: Update, context: CallbackContext):
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
     if not_joined:
-        buttons = [
-            [InlineKeyboardButton("Join Channel", url=f"https://t.me/{ch}")]
-            for ch in not_joined
-        ]
+        buttons = []
+        row = []
+        for ch in not_joined:
+            row.append(InlineKeyboardButton("Join Channel", url=f"https://t.me/{ch}"))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+        if row:
+            buttons.append(row)
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
-        query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+
+        try:
+            query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
+        except BadRequest as e:
+            if "Message is not modified" in str(e):
+                pass  # Ignore this specific error
+            else:
+                logging.error(f"Retry markup update failed: {e}")
         query.answer("❗ Still missing required channels.")
         return
 
@@ -344,7 +371,7 @@ def retry_callback(update: Update, context: CallbackContext):
         query.answer("❌ Could not send file.")
 
 
-# === REPOST HANDLER FIXED ✅ ===
+# === REPOST HANDLER ===
 def repost_handler(update: Update, context: CallbackContext):
     msg = update.channel_post
     if not msg or msg.chat.id != SOURCE_CHANNEL_ID:
@@ -374,13 +401,24 @@ def repost_handler(update: Update, context: CallbackContext):
         token = f"file_{quality}_{msg.message_id}"
         save_token(token, file_id, file_name)
 
-        link = f"https://t.me/c/{str(SOURCE_CHANNEL_ID)[4:]}/{msg.message_id}"
-        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Download", url=link)]])
+        # ✅ Get the public username of the source channel
+        source_channel_username = msg.chat.username  # this is None if the channel is private
+
+        if not source_channel_username:
+            logging.error("Source channel does not have a public username.")
+            return
+
+        # ✅ Create public post link
+        post_link = f"https://t.me/{source_channel_username}/{msg.message_id}"
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Download", url=post_link)]
+        ])
 
         context.bot.send_photo(
             chat_id=TARGET_CHANNEL_ID,
             photo=COVER_IMAGE_URL,
-            caption=f"{file_name}\n <blockquote>Contact @{ALLOWED_USERNAME} for any issues.</blockquote>",
+            caption=f"{file_name}\n<blockquote>Contact @{ALLOWED_USERNAME} for any issues.</blockquote>",
             reply_markup=keyboard,
             parse_mode=ParseMode.HTML
         )
