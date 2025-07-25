@@ -7,7 +7,7 @@ import logging
 import platform
 import psutil
 from dotenv import load_dotenv
-load_dotenv()
+
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup, ParseMode
 )
@@ -16,20 +16,26 @@ from telegram.ext import (
     CallbackQueryHandler, Filters
 )
 
-# === CONFIG ===
-FILE_BOT_TOKEN = "7947800409:AAHjbji2qFTvUPdbd2cnnIJPjhxqKcRVXJI"
-REPOST_BOT_TOKEN = "7833851603:AAHTrZ_sYkC_5Q8T8AkI6BbNUWaht-tpEpU"
-SOURCE_CHANNEL_ID = -1002683953531
-TARGET_CHANNEL_ID = -1002788539716
-CHANNEL_ID = -1002683953531
-ALLOWED_USERNAME = "chitogeedits3"
-REQUIRED_CHANNELS = ["kagenou_x_x_0", "chitogeedits2", "blabla658"]
-COVER_IMAGE_URL = "https://i.ibb.co/B5mFTtdD/thumbnail-00000.png"
-WELCOME_IMAGE_URL = "https://i.ibb.co/N652WQmH/90s-Anime-Songs.png"
-DB_PATH="file_tokens.db"
+# === LOAD CONFIG ===
+load_dotenv()
+FILE_BOT_TOKEN = os.getenv("FILE_BOT_TOKEN")
+REPOST_BOT_TOKEN = os.getenv("REPOST_BOT_TOKEN")
+SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID"))
+TARGET_CHANNEL_ID = int(os.getenv("TARGET_CHANNEL_ID"))
+CHANNEL_ID = int(os.getenv("CHANNEL_ID"))
+ALLOWED_USERNAME = os.getenv("ALLOWED_USERNAME")
+REQUIRED_CHANNELS = os.getenv("REQUIRED_CHANNELS", "").split(",")
+COVER_IMAGE_URL = os.getenv("COVER_IMAGE_URL")
+WELCOME_IMAGE_URL = os.getenv("WELCOME_IMAGE_URL")
+
+DB_PATH = "file_tokens.db"
+media_group_cache = {}
+start_time = time.time()
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# === DB ===
+
+# === DATABASE ===
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS file_tokens (
@@ -41,26 +47,32 @@ def init_db():
             user_id INTEGER PRIMARY KEY
         )""")
 
+
 def save_token(token, file_id, file_name):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("INSERT OR REPLACE INTO file_tokens VALUES (?, ?, ?)", (token, file_id, file_name))
+
 
 def get_token(token):
     with sqlite3.connect(DB_PATH) as conn:
         res = conn.execute("SELECT file_id, file_name FROM file_tokens WHERE token = ?", (token,)).fetchone()
         return res if res else (None, None)
 
+
 def count_tokens():
     with sqlite3.connect(DB_PATH) as conn:
         return conn.execute("SELECT COUNT(*) FROM file_tokens").fetchone()[0]
+
 
 def save_user(user_id):
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("INSERT OR IGNORE INTO users(user_id) VALUES(?)", (user_id,))
 
+
 def get_user_count():
     with sqlite3.connect(DB_PATH) as conn:
         return conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+
 
 # === HELPERS ===
 def extract_quality(name):
@@ -69,6 +81,7 @@ def extract_quality(name):
         if q in name:
             return q.upper()
     return "UNKNOWN"
+
 
 def extract_audio(name):
     name = name.lower()
@@ -80,6 +93,7 @@ def extract_audio(name):
         return "Japanese [Sub]"
     return "N/A"
 
+
 def extract_season_episode(name):
     name = name.lower()
     season_match = re.search(r'\b(?:s|season)[\s:_-]*(\d{1,2})\b', name)
@@ -87,6 +101,7 @@ def extract_season_episode(name):
     episode_match = re.search(r'\b(?:ep|episode)[\s:_-]*(\d{1,3})\b', name)
     episode = episode_match.group(1).zfill(2) if episode_match else "01"
     return season, episode
+
 
 def get_unsubscribed_channels(bot, user_id):
     not_joined = []
@@ -100,17 +115,18 @@ def get_unsubscribed_channels(bot, user_id):
             not_joined.append(ch)
     return not_joined
 
+
 def media_handler(update: Update, context: CallbackContext):
     msg = update.message
     if not msg:
-        return  # Fix for NoneType error
-
+        return
     if msg.media_group_id:
         media_group_cache.setdefault(msg.media_group_id, []).append((msg, time.time()))
         for gid in list(media_group_cache):
             media_group_cache[gid] = [(m, t) for m, t in media_group_cache[gid] if time.time() - t < 60]
             if not media_group_cache[gid]:
                 del media_group_cache[gid]
+
 
 def delete_sent_file(context: CallbackContext):
     data = context.job.context
@@ -119,40 +135,39 @@ def delete_sent_file(context: CallbackContext):
     except Exception as e:
         logging.warning(f"Auto-delete failed: {e}")
 
+
 # === STATUS ===
 def status(update: Update, context: CallbackContext):
     user = update.effective_user
     if user.username != ALLOWED_USERNAME:
         return
-
     uptime = int(time.time() - start_time)
-    hours, rem = divmod(uptime, 3600)
-    minutes, seconds = divmod(rem, 60)
-
-    cpu_percent = psutil.cpu_percent(interval=1)
+    h, r = divmod(uptime, 3600)
+    m, s = divmod(r, 60)
+    cpu = psutil.cpu_percent(interval=1)
     ram = psutil.virtual_memory()
-
     text = (
-        "<b>ðŸ“Š Bot Status Report</b>\n"
+        "<b>📊 Bot Status Report</b>\n"
         "<blockquote>"
-        f" Uptime   : {hours}h {minutes}m {seconds}s\n"
+        f" Uptime   : {h}h {m}m {s}s\n"
         f" Files    : {count_tokens()}\n"
         f" Users    : {get_user_count()}\n"
-        f" CPU      : {cpu_percent}%\n"
+        f" CPU      : {cpu}%\n"
         f" RAM      : {ram.percent}% "
         f"({round(ram.used / 1024**2)}MB / {round(ram.total / 1024**2)}MB)"
         "</blockquote>"
     )
     update.message.reply_text(text, parse_mode=ParseMode.HTML)
 
+
 # === POSTFILE ===
 def postfile(update: Update, context: CallbackContext):
     msg = update.message
     if msg.from_user.username != ALLOWED_USERNAME:
-        msg.reply_text("â›” You're not allowed.")
+        msg.reply_text("⛔ You're not allowed.")
         return
     if not msg.reply_to_message:
-        msg.reply_text("â— Reply to a media file.")
+        msg.reply_text("❗ Reply to a media file.")
         return
 
     replied = msg.reply_to_message
@@ -183,7 +198,7 @@ def postfile(update: Update, context: CallbackContext):
             first_token = token
 
     if not quality_map:
-        msg.reply_text("âŒ No valid document found.")
+        msg.reply_text("❌ No valid document found.")
         return
 
     _, file_name = get_token(first_token)
@@ -202,14 +217,14 @@ def postfile(update: Update, context: CallbackContext):
 
     quality_text = "Multi" if len(quality_map) > 1 else list(quality_map.keys())[0]
     caption = (
-        f"â¬¡ {title}\n"
-        f"â•­â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
-        f"â€£ Season : {season}\n"
-        f"â€£ Episode : {episode}\n"
-        f"â€£ Quality : {quality_text}\n"
-        f"â€£ Audio   : {audio_text}\n"
-        f"â•°â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
-        f"â¬¡ Powered By : @{REQUIRED_CHANNELS[1]}"
+        f"⬡ {title}\n"
+        f"╭━━━━━━━━━━━━━━━━━━━━━\n"
+        f"‣ Season : {season}\n"
+        f"‣ Episode : {episode}\n"
+        f"‣ Quality : {quality_text}\n"
+        f"‣ Audio   : {audio_text}\n"
+        f"╰━━━━━━━━━━━━━━━━━━━━━\n"
+        f"⬡ Powered By : @{REQUIRED_CHANNELS[1]}"
     )
 
     context.bot.send_photo(
@@ -218,7 +233,8 @@ def postfile(update: Update, context: CallbackContext):
         caption=caption,
         reply_markup=InlineKeyboardMarkup(buttons)
     )
-    msg.reply_text("âœ… Posted.")
+    msg.reply_text("✅ Posted.")
+
 
 # === START ===
 def start(update: Update, context: CallbackContext):
@@ -236,7 +252,7 @@ def start(update: Update, context: CallbackContext):
             context.bot.send_photo(
                 chat_id=user.id,
                 photo=WELCOME_IMAGE_URL,
-                caption="Welcome!\n\nThis bot doesn't support browsing directly.\n\nâ¬¡ Powered by @chitogeedits2",
+                caption="Welcome!\n\nThis bot doesn't support browsing directly.\n\n⬡ Powered by @chitogeedits2",
                 reply_markup=buttons
             )
         except Exception as e:
@@ -246,7 +262,7 @@ def start(update: Update, context: CallbackContext):
     token = args[0]
     file_id, file_name = get_token(token)
     if not file_id:
-        update.message.reply_text("âŒ File not available.")
+        update.message.reply_text("❌ File not available.")
         return
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
@@ -258,7 +274,7 @@ def start(update: Update, context: CallbackContext):
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
         context.bot.send_message(
             chat_id=user.id,
-            text="ðŸ”’ Please join all required channels to unlock this file:",
+            text="🔒 Please join all required channels to unlock this file:",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
         return
@@ -272,13 +288,14 @@ def start(update: Update, context: CallbackContext):
         )
         context.bot.send_message(
             chat_id=user.id,
-            text="<blockquote>This File is deleting automatically in 10 minutes. Forward in your Saved Messages..!</blockquote>",
+            text="<blockquote>This File is deleting automatically in 10 minutes. Forward in your Saved Messages..!.</blockquote>",
             parse_mode=ParseMode.HTML
         )
         context.job_queue.run_once(delete_sent_file, 600, context={"chat_id": user.id, "message_id": sent.message_id})
     except Exception as e:
-        update.message.reply_text("âŒ Failed to send file.")
+        update.message.reply_text("❌ Failed to send file.")
         logging.error(f"Start error: {e}")
+
 
 # === RETRY ===
 def retry_callback(update: Update, context: CallbackContext):
@@ -287,13 +304,13 @@ def retry_callback(update: Update, context: CallbackContext):
     query.answer()
     token_match = re.match(r"retry:(file_\w+_\d+)", query.data)
     if not token_match:
-        query.answer("âŒ Invalid token.", show_alert=True)
+        query.answer("❌ Invalid token.", show_alert=True)
         return
 
     token = token_match.group(1)
     file_id, file_name = get_token(token)
     if not file_id:
-        query.answer("âŒ File not available.", show_alert=True)
+        query.answer("❌ File not available.", show_alert=True)
         return
 
     not_joined = get_unsubscribed_channels(context.bot, user.id)
@@ -304,7 +321,7 @@ def retry_callback(update: Update, context: CallbackContext):
         ]
         buttons.append([InlineKeyboardButton("Try Again", callback_data=f"retry:{token}")])
         query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup(buttons))
-        query.answer("â— Still missing required channels.")
+        query.answer("❗ Still missing required channels.")
         return
 
     try:
@@ -321,31 +338,57 @@ def retry_callback(update: Update, context: CallbackContext):
         )
         context.job_queue.run_once(delete_sent_file, 600, context={"chat_id": user.id, "message_id": sent.message_id})
         context.bot.delete_message(chat_id=query.message.chat_id, message_id=query.message.message_id)
-        query.answer("âœ… File sent to your DM.")
+        query.answer("✅ File sent to your DM.")
     except Exception as e:
         logging.error(f"Retry send failed: {e}")
-        query.answer("âŒ Could not send file.")
+        query.answer("❌ Could not send file.")
 
-# === REPOST ===
+
+# === REPOST HANDLER FIXED ✅ ===
 def repost_handler(update: Update, context: CallbackContext):
     msg = update.channel_post
-    if msg.chat.id != SOURCE_CHANNEL_ID:
+    if not msg or msg.chat.id != SOURCE_CHANNEL_ID:
         return
-    post_link = f"https://t.me/c/{str(SOURCE_CHANNEL_ID)[4:]}/{msg.message_id}"
-    keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Download", url=post_link)]])
+
     try:
-        if msg.photo:
-            context.bot.send_photo(chat_id=TARGET_CHANNEL_ID, photo=msg.photo[-1].file_id, caption=msg.caption or "", reply_markup=keyboard, parse_mode=ParseMode.HTML)
+        file_id = None
+        file_name = None
+        quality = "UNKNOWN"
+        token = None
+
+        if msg.document:
+            file_id = msg.document.file_id
+            file_name = msg.document.file_name or "Untitled"
+            quality = extract_quality(file_name)
         elif msg.video:
-            context.bot.send_video(chat_id=TARGET_CHANNEL_ID, video=msg.video.file_id, caption=msg.caption or "", reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        elif msg.document:
-            context.bot.send_document(chat_id=TARGET_CHANNEL_ID, document=msg.document.file_id, caption=msg.caption or "", reply_markup=keyboard, parse_mode=ParseMode.HTML)
-        elif msg.text:
-            context.bot.send_message(chat_id=TARGET_CHANNEL_ID, text=msg.text, reply_markup=keyboard, parse_mode=ParseMode.HTML)
+            file_id = msg.video.file_id
+            file_name = msg.caption or "Untitled"
+            quality = "HD"
+        elif msg.photo:
+            file_id = msg.photo[-1].file_id
+            file_name = msg.caption or "Untitled"
+            quality = "HD"
+        else:
+            return
+
+        token = f"file_{quality}_{msg.message_id}"
+        save_token(token, file_id, file_name)
+
+        link = f"https://t.me/c/{str(SOURCE_CHANNEL_ID)[4:]}/{msg.message_id}"
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Download", url=link)]])
+
+        context.bot.send_photo(
+            chat_id=TARGET_CHANNEL_ID,
+            photo=COVER_IMAGE_URL,
+            caption=f"{file_name}\n <blockquote>Contact @{ALLOWED_USERNAME} for any issues.</blockquote>",
+            reply_markup=keyboard,
+            parse_mode=ParseMode.HTML
+        )
+
     except Exception as e:
         logging.error(f"Repost failed: {e}")
 
-# === RUN ===
+# === RUN BOT ===
 def run_bots():
     file_updater = Updater(FILE_BOT_TOKEN, use_context=True)
     repost_updater = Updater(REPOST_BOT_TOKEN, use_context=True)
@@ -361,12 +404,13 @@ def run_bots():
     repost_dp.add_handler(MessageHandler(Filters.update.channel_posts, repost_handler))
 
     file_updater.job_queue.start()
-    logging.info("ðŸ“ File Bot running...")
-    logging.info("ðŸ” Repost Bot running...")
+    logging.info("📁 File Bot running...")
+    logging.info("🔁 Repost Bot running...")
     file_updater.start_polling()
     repost_updater.start_polling()
     file_updater.idle()
     repost_updater.idle()
+
 
 if __name__ == "__main__":
     init_db()
